@@ -45,27 +45,32 @@ try:
         logger.info(f"API Key found: {api_key[:10]}...")
         genai.configure(api_key=api_key)
         
-        # List available models first
-        try:
-            models = genai.list_models()
-            available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
-            logger.info(f"Available models: {available_models[:3]}")  # Log first 3
-            
-            # Try to use the first available model
-            if available_models:
-                model_name = available_models[0]
-                gemini_model = genai.GenerativeModel(model_name)
-                logger.info(f"Using model: {model_name}")
-                
-                # Test the connection
-                test_response = gemini_model.generate_content("Hello")
+        # Try simple model names first
+        model_attempts = [
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-pro-latest', 
+            'gemini-1.0-pro-latest',
+            'gemini-pro',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
+        ]
+        
+        gemini_model = None
+        for model_name in model_attempts:
+            try:
+                logger.info(f"Trying model: {model_name}")
+                test_model = genai.GenerativeModel(model_name)
+                test_response = test_model.generate_content("Hello")
+                gemini_model = test_model
+                logger.info(f"SUCCESS: Using model {model_name}")
                 logger.info(f"Test response: {test_response.text[:50]}...")
-            else:
-                logger.error("No suitable models found")
-                gemini_model = None
-        except Exception as model_error:
-            logger.error(f"Model initialization error: {model_error}")
-            gemini_model = None
+                break
+            except Exception as e:
+                logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
+                continue
+        
+        if not gemini_model:
+            logger.error("All model attempts failed - using fallback system")
     else:
         logger.warning("No GEMINI_API_KEY found")
 except Exception as e:
