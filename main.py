@@ -45,29 +45,55 @@ try:
         logger.info(f"API Key found: {api_key[:10]}...")
         genai.configure(api_key=api_key)
         
-        # Try simple model names first
-        model_attempts = [
-            'gemini-1.5-flash-latest',
-            'gemini-1.5-pro-latest', 
-            'gemini-1.0-pro-latest',
-            'gemini-pro',
-            'gemini-1.5-flash',
-            'gemini-1.5-pro'
-        ]
-        
-        gemini_model = None
-        for model_name in model_attempts:
-            try:
-                logger.info(f"Trying model: {model_name}")
+        # First, try to list available models
+        try:
+            logger.info("Listing available models...")
+            models = genai.list_models()
+            available_models = []
+            for m in models:
+                if 'generateContent' in m.supported_generation_methods:
+                    available_models.append(m.name)
+                    logger.info(f"Available model: {m.name}")
+            
+            if available_models:
+                # Try the first available model
+                model_name = available_models[0]
+                logger.info(f"Attempting to use: {model_name}")
                 test_model = genai.GenerativeModel(model_name)
                 test_response = test_model.generate_content("Hello")
                 gemini_model = test_model
                 logger.info(f"SUCCESS: Using model {model_name}")
                 logger.info(f"Test response: {test_response.text[:50]}...")
-                break
-            except Exception as e:
-                logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
-                continue
+            else:
+                logger.error("No models with generateContent support found")
+                
+        except Exception as list_error:
+            logger.warning(f"Could not list models: {list_error}")
+            
+            # Fallback to hardcoded attempts
+            model_attempts = [
+                'models/gemini-1.5-flash',
+                'models/gemini-1.5-pro', 
+                'models/gemini-pro',
+                'models/gemini-1.0-pro',
+                'gemini-1.5-flash',
+                'gemini-1.5-pro',
+                'gemini-pro',
+                'gemini-1.0-pro'
+            ]
+            
+            for model_name in model_attempts:
+                try:
+                    logger.info(f"Trying model: {model_name}")
+                    test_model = genai.GenerativeModel(model_name)
+                    test_response = test_model.generate_content("Hello")
+                    gemini_model = test_model
+                    logger.info(f"SUCCESS: Using model {model_name}")
+                    logger.info(f"Test response: {test_response.text[:50]}...")
+                    break
+                except Exception as e:
+                    logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
+                    continue
         
         if not gemini_model:
             logger.error("All model attempts failed - using fallback system")
