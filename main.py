@@ -44,12 +44,28 @@ try:
     if api_key:
         logger.info(f"API Key found: {api_key[:10]}...")
         genai.configure(api_key=api_key)
-        gemini_model = genai.GenerativeModel('gemini-pro')
-        logger.info("Gemini API initialized successfully")
         
-        # Test the connection
-        test_response = gemini_model.generate_content("Hello")
-        logger.info(f"Test response: {test_response.text[:50]}...")
+        # List available models first
+        try:
+            models = genai.list_models()
+            available_models = [m.name for m in models if 'generateContent' in m.supported_generation_methods]
+            logger.info(f"Available models: {available_models[:3]}")  # Log first 3
+            
+            # Try to use the first available model
+            if available_models:
+                model_name = available_models[0]
+                gemini_model = genai.GenerativeModel(model_name)
+                logger.info(f"Using model: {model_name}")
+                
+                # Test the connection
+                test_response = gemini_model.generate_content("Hello")
+                logger.info(f"Test response: {test_response.text[:50]}...")
+            else:
+                logger.error("No suitable models found")
+                gemini_model = None
+        except Exception as model_error:
+            logger.error(f"Model initialization error: {model_error}")
+            gemini_model = None
     else:
         logger.warning("No GEMINI_API_KEY found")
 except Exception as e:
