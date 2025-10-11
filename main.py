@@ -28,6 +28,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[Message]
+    language: str = "English"
 
 class ChatResponse(BaseModel):
     response: str
@@ -375,9 +376,22 @@ Would you like help preparing for your doctor visit or have urgent concerns I sh
 
 I'm here to support your recovery. What specific aspect would you like to discuss further?"""
 
+def get_language_instruction(language: str) -> str:
+    """Get language-specific instruction for AI responses"""
+    if language == "Hindi":
+        return """LANGUAGE INSTRUCTION: Please respond in Hindi (हिंदी). Use Devanagari script. 
+        Provide medical advice, home remedies, and guidance in Hindi language. 
+        You can understand English input but must respond in Hindi."""
+    elif language == "Gujarati":
+        return """LANGUAGE INSTRUCTION: Please respond in Gujarati (ગુજરાતી). Use Gujarati script.
+        Provide medical advice, home remedies, and guidance in Gujarati language.
+        You can understand English input but must respond in Gujarati."""
+    else:
+        return """LANGUAGE INSTRUCTION: Please respond in English. Provide clear, simple English responses."""
+
 # End of interactive response system
 
-async def get_ai_response(messages: List[Message]) -> str:
+async def get_ai_response(messages: List[Message], language: str = "English") -> str:
     """Get response from AI model or interactive system"""
     try:
         # Try Gemini API first if available
@@ -385,8 +399,9 @@ async def get_ai_response(messages: List[Message]) -> str:
             try:
                 logger.info("Using Gemini AI for response")
                 
-                # Build conversation context for Gemini
-                conversation_text = f"{SYSTEM_PROMPT}\n\n"
+                # Build conversation context for Gemini with language instruction
+                language_instruction = get_language_instruction(language)
+                conversation_text = f"{SYSTEM_PROMPT}\n\n{language_instruction}\n\n"
                 
                 for message in messages:
                     if message.role == "user":
@@ -441,7 +456,7 @@ async def chat_endpoint(request: ChatRequest):
         for i, msg in enumerate(request.messages):
             logger.info(f"Message {i}: role={msg.role}, content={msg.content[:50]}...")
         
-        ai_response = await get_ai_response(request.messages)
+        ai_response = await get_ai_response(request.messages, request.language)
         logger.info(f"Generated response: {ai_response[:100]}...")
         
         return ChatResponse(response=ai_response)
