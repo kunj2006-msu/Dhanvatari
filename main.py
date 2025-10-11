@@ -427,7 +427,7 @@ async def health_check():
         "version": "1.0.0"
     }
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     """Main chat endpoint for processing user messages"""
     try:
