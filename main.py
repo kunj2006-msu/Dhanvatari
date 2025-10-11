@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import List
 import os
 import logging
+import time
+import asyncio
 
 # Simple fallback responses for when Gemini is not available
 FALLBACK_RESPONSES = {
@@ -24,6 +26,10 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Rate limiting variables
+last_api_call_time = 0
+MIN_API_INTERVAL = 1.0  # Minimum 1 second between API calls
 
 class Message(BaseModel):
     role: str
@@ -64,6 +70,8 @@ try:
                 gemini_model = test_model
                 logger.info(f"SUCCESS: Using model {model_name}")
                 logger.info(f"Test response: {test_response.text[:50]}...")
+                # Add delay after successful test
+                time.sleep(1)
             else:
                 logger.error("No models with generateContent support found")
                 
@@ -89,9 +97,13 @@ try:
                     gemini_model = test_model
                     logger.info(f"SUCCESS: Using model {model_name}")
                     logger.info(f"Test response: {test_response.text[:50]}...")
+                    # Add delay between model tests to avoid rate limits
+                    time.sleep(1)
                     break
                 except Exception as e:
                     logger.warning(f"Model {model_name} failed: {str(e)[:100]}")
+                    # Add delay before trying next model
+                    time.sleep(1)
                     continue
         
         if not gemini_model:
@@ -123,10 +135,71 @@ def get_language_instruction(language: str) -> str:
     else:
         return "Please respond in English."
 
+async def rate_limited_api_call(model, prompt: str, max_retries: int = 3) -> str:
+    """Make a rate-limited API call with retry logic for 429 errors"""
+    global last_api_call_time
+    
+    for attempt in range(max_retries):
+        try:
+            # Ensure minimum time between API calls
+            current_time = time.time()
+            time_since_last_call = current_time - last_api_call_time
+            
+            if time_since_last_call < MIN_API_INTERVAL:
+                sleep_time = MIN_API_INTERVAL - time_since_last_call
+                logger.info(f"Rate limiting: sleeping for {sleep_time:.2f} seconds")
+                await asyncio.sleep(sleep_time)
+            
+            # Make the API call
+            logger.info(f"Making API call (attempt {attempt + 1}/{max_retries})")
+            response = model.generate_content(prompt)
+            
+            # Update last call time
+            last_api_call_time = time.time()
+            
+            # Add a 1-second pause after successful call
+            await asyncio.sleep(1.0)
+            
+            return response.text
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            logger.warning(f"API call attempt {attempt + 1} failed: {str(e)[:100]}")
+            
+            # Handle specific error types
+            if "429" in error_str or "too many requests" in error_str or "quota" in error_str:
+                if attempt < max_retries - 1:
+                    # Exponential backoff for rate limit errors
+                    backoff_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+                    logger.info(f"Rate limit hit, backing off for {backoff_time} seconds")
+                    await asyncio.sleep(backoff_time)
+                    continue
+                else:
+                    logger.error("Max retries reached for rate limit error")
+                    raise Exception("API rate limit exceeded. Please try again later.")
+            
+            elif "400" in error_str or "invalid" in error_str:
+                # Don't retry for client errors
+                logger.error(f"Client error, not retrying: {e}")
+                raise e
+            
+            else:
+                # For other errors, wait and retry
+                if attempt < max_retries - 1:
+                    wait_time = 2 * (attempt + 1)  # 2, 4, 6 seconds
+                    logger.info(f"Retrying after {wait_time} seconds...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Max retries reached: {e}")
+                    raise e
+    
+    raise Exception("All retry attempts failed")
+
 async def get_ai_response(messages: List[Message], language: str = "English") -> str:
     try:
         if gemini_model:
-            logger.info("Using Gemini AI for response")
+            logger.info("Using Gemini AI for response with rate limiting")
             
             # Build conversation context
             system_prompt = f"""You are Dhanvantari, a helpful AI health companion. 
@@ -148,8 +221,9 @@ async def get_ai_response(messages: List[Message], language: str = "English") ->
             
             conversation_text += "\nPlease provide a helpful, empathetic response following the guidelines above."
             
-            response = gemini_model.generate_content(conversation_text)
-            return response.text
+            # Use rate-limited API call with retry logic
+            response_text = await rate_limited_api_call(gemini_model, conversation_text)
+            return response_text
         else:
             # Use fallback response
             logger.info("Using fallback response system")
@@ -157,7 +231,17 @@ async def get_ai_response(messages: List[Message], language: str = "English") ->
             
     except Exception as e:
         logger.error(f"Error in AI response: {e}")
-        return FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["English"])
+        # Check if it's a rate limit error and provide appropriate message
+        error_str = str(e).lower()
+        if "rate limit" in error_str or "429" in error_str or "quota" in error_str:
+            rate_limit_message = {
+                "English": "I apologize, but I'm currently experiencing high demand. Please wait a moment and try again. If this persists, please consult with a healthcare professional directly.",
+                "Hindi": "मुझे खेद है, लेकिन मैं वर्तमान में उच्च मांग का सामना कर रहा हूं। कृपया एक क्षण प्रतीक्षा करें और पुनः प्रयास करें। यदि यह जारी रहता है, तो कृपया सीधे किसी स्वास्थ्य पेशेवर से सलाह लें।",
+                "Gujarati": "મને માફ કરશો, પરંતુ હું હાલમાં ઉચ્ચ માંગનો સામનો કરી રહ્યો છું. કૃપા કરીને એક ક્ષણ રાહ જુઓ અને ફરીથી પ્રયાસ કરો. જો આ ચાલુ રહે, તો કૃપા કરીને સીધા આરોગ્ય વ્યાવસાયિક સાથે સલાહ લો."
+            }
+            return rate_limit_message.get(language, rate_limit_message["English"])
+        else:
+            return FALLBACK_RESPONSES.get(language, FALLBACK_RESPONSES["English"])
 
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
