@@ -2,12 +2,8 @@ services:
   - type: web
     name: dhanvantari-backend
     env: python
-    runtime: python-3.11.9
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-        value: AIzaSyAXhVm_SOMNG-6ZWEqMH7y-62jQQwZ1WZY
-      - key: PYTHON_VERSION
-        value: "3.9"
