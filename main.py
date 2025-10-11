@@ -65,6 +65,7 @@ async def health_check():
     return {
         "status": "healthy",
         "gemini_available": gemini_model is not None,
+        "api_key_present": bool(os.getenv("GEMINI_API_KEY")),
         "version": "1.0.0"
     }
 
