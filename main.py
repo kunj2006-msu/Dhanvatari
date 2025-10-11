@@ -70,16 +70,15 @@ try:
         except Exception as list_error:
             logger.warning(f"Could not list models: {list_error}")
             
-            # Fallback to hardcoded attempts
+            # Fallback to models we know are available from the logs
             model_attempts = [
-                'models/gemini-1.5-flash',
-                'models/gemini-1.5-pro', 
-                'models/gemini-pro',
-                'models/gemini-1.0-pro',
-                'gemini-1.5-flash',
-                'gemini-1.5-pro',
-                'gemini-pro',
-                'gemini-1.0-pro'
+                'models/gemini-2.0-flash',
+                'models/gemini-2.0-flash-001',
+                'models/gemini-flash-latest',
+                'models/gemini-pro-latest',
+                'models/gemini-2.5-flash',
+                'models/gemini-2.0-flash-lite',
+                'models/gemini-2.0-flash-lite-001'
             ]
             
             for model_name in model_attempts:
