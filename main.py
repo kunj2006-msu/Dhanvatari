@@ -11,15 +11,10 @@ load_dotenv()
 
 app = FastAPI(title="Dhanvantari API", description="AI-Driven Healthcare Backend", version="1.0.0")
 
-# Get allowed origins from environment or use defaults
-allowed_origins = os.getenv("ALLOWED_ORIGINS", 
-    "http://localhost:3000,http://127.0.0.1:3000,https://dhanvantari-healthcare.netlify.app,https://*.netlify.app"
-).split(",")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for deployment
+    allow_credentials=False,  # Set to False when using allow_origins=["*"]
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
