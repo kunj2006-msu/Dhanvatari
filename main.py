@@ -44,7 +44,7 @@ try:
     if api_key:
         logger.info(f"API Key found: {api_key[:10]}...")
         genai.configure(api_key=api_key)
-        gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        gemini_model = genai.GenerativeModel('gemini-pro')
         logger.info("Gemini API initialized successfully")
         
         # Test the connection
