@@ -6,3 +6,5 @@ python-dotenv
 passlib
 pydantic
 dnspython
+google-generativeai
+pymongo[srv]
