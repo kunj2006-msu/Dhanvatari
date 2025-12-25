@@ -28,7 +28,8 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 if not HF_TOKEN:
     logger.error("FATAL ERROR: HF_TOKEN environment variable not set.")
     raise ValueError("HF_TOKEN is not set, please check your environment variables.")
-API_URL = "https://api-inference.huggingface.co/models/BioMistral/BioMistral-7B-SLERP"
+# Use the new Hugging Face router endpoint (old api-inference.huggingface.co is deprecated)
+API_URL = "https://router.huggingface.co/models/BioMistral/BioMistral-7B-SLERP"
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO)

@@ -8,7 +8,8 @@ import requests
 
 # --- Configuration ---
 HF_TOKEN = os.getenv("HF_TOKEN")
-API_URL = "https://api-inference.huggingface.co/models/BioMistral/BioMistral-7B-SLERP"
+# Use the new Hugging Face router endpoint (old api-inference.huggingface.co is deprecated)
+API_URL = "https://router.huggingface.co/models/BioMistral/BioMistral-7B-SLERP"
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO)

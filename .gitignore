@@ -32,6 +32,12 @@ venv.bak/
 
 # IDE
 .vscode/
+
+# Environment variables
+.env
+
+# Debug files
+debug_mongo.py
 .idea/
 *.swp
 *.swo
