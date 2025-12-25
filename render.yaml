@@ -3,7 +3,9 @@ services:
     name: dhanvantari-backend
     env: python
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app_v2:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: GEMINI_API_KEY
+      - key: MONGO_DETAILS
+        sync: false
+      - key: HF_TOKEN
         sync: false
