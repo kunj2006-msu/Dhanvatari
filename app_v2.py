@@ -25,6 +25,9 @@ if not MONGO_DETAILS:
     # For now, this will prevent the app from trying to connect to localhost.
     raise ValueError("MONGO_DETAILS is not set, please check your .env file.")
 HF_TOKEN = os.getenv("HF_TOKEN")
+if not HF_TOKEN:
+    logger.error("FATAL ERROR: HF_TOKEN environment variable not set.")
+    raise ValueError("HF_TOKEN is not set, please check your environment variables.")
 API_URL = "https://api-inference.huggingface.co/models/BioMistral/BioMistral-7B-SLERP"
 
 # --- Logging Setup ---
