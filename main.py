@@ -9,7 +9,7 @@ import requests
 # --- Configuration ---
 HF_TOKEN = os.getenv("HF_TOKEN")
 # Use the new Hugging Face router endpoint for OpenAI-compatible chat completions
-API_URL = "https://router.huggingface.co/hf-inference/v1/chat/completions"
+API_URL = "https://router.huggingface.co/v1/chat/completions"
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO)
@@ -111,7 +111,7 @@ def query_huggingface_api(messages: List[dict]) -> Optional[str]:
     """Calls the Hugging Face OpenAI-compatible chat completions endpoint."""
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
-        "model": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
         "messages": messages,
         "max_tokens": 500,
     }
