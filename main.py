@@ -80,14 +80,31 @@ def get_language_instruction(language: str) -> str:
     return instructions.get(language, "Speak naturally and fluently in the requested language.")
 
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
-    return f"""You are a professional medical assistant. 
-1. Target Language: {language}
-2. Rule: You MUST respond ONLY in {language}. Use natural, local phrasing.
-3. Process: Think about the medical advice in English first, but only write the final output in {language}.
-4. Style: Helpful, empathetic, and clear.
-5. Safety: Remind the user you are an AI and they must see a doctor.
-6. STRICT RULE: Do not use any special symbols like $ or LaTeX formatting. Use plain Unicode Gujarati script only. Write like a human doctor, not a machine.
-User context: {user_context}"""
+    # Check for serious conditions
+    has_serious_condition = user_context and user_context.conditions and any(c in ['Diabetes', 'Heart Disease', 'High Blood Pressure'] for c in user_context.conditions)
+    
+    # If it's a non-English language AND there is a serious condition, we make the prompt 'Loud'
+    if language != "English" and has_serious_condition:
+        instruction_style = f"URGENT: The user has {', '.join(user_context.conditions)}. Do NOT give a standard reply. You MUST explain how their symptoms interact with these specific conditions in {language}."
+    else:
+        instruction_style = f"Provide personalized advice based on the user's profile."
+
+    base_prompt = f"""You are Dhanvantari, a professional Vaidya.
+{get_language_instruction(language)}
+
+CORE TASK:
+{instruction_style}
+
+STRICT RULES:
+1. Always prioritize the User's specific health conditions over general advice.
+2. Use natural, spoken {language}.
+3. Safety: End by recommending a real doctor.
+
+USER PROFILE:
+- Age: {user_context.age if user_context else 'N/A'}
+- Conditions: {user_context.conditions if user_context else 'None'}
+"""
+    return base_prompt
 
 def query_huggingface_api(messages: List[dict]) -> Optional[str]:
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
@@ -96,9 +113,10 @@ def query_huggingface_api(messages: List[dict]) -> Optional[str]:
         "model": "meta-llama/Llama-3.3-70B-Instruct", 
         "messages": messages,
         "max_tokens": 800,
-        "temperature": 0.4,       # ઓછું ટેમ્પરેચર એટલે વધુ સ્થિર ભાષા
-        "frequency_penalty": 0.5,  # પુનરાવર્તન અટકાવવા માટે
-        "top_p": 0.9
+        "temperature": 0.3,       # ઓછું ટેમ્પરેચર એટલે વધુ સ્થિર ભાષા
+        "frequency_penalty": 0.4,  # પુનરાવર્તન અટકાવવા માટે
+        "top_p": 0.85
+        "presence_penalty": 0.3
     }
     # ... બાકીનું લોજિક ...
     try:
