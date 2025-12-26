@@ -8,8 +8,8 @@ import requests
 
 # --- Configuration ---
 HF_TOKEN = os.getenv("HF_TOKEN")
-# Use the new Hugging Face router endpoint (old api-inference.huggingface.co is deprecated)
-API_URL = "https://router.huggingface.co/models/BioMistral/BioMistral-7B-SLERP"
+# Use the new Hugging Face router endpoint for OpenAI-compatible chat completions
+API_URL = "https://router.huggingface.co/hf-inference/v1/chat/completions"
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO)
@@ -20,12 +20,6 @@ if not HF_TOKEN:
     logger.error("FATAL ERROR: HF_TOKEN environment variable not set. The application cannot start without it.")
     raise ValueError("HF_TOKEN is not set, please check your environment variables.")
 
-# --- Fallback Responses ---
-FALLBACK_RESPONSES = {
-    "English": "Thank you for sharing. I am currently experiencing technical difficulties and cannot process your request. For your health and safety, please consult a qualified healthcare professional.",
-    "Hindi": "साझा करने के लिए धन्यवाद। मैं वर्तमान में तकनीकी कठिनाइयों का सामना कर रहा हूं और आपके अनुरोध को संसाधित नहीं कर सकता। आपके स्वास्थ्य और सुरक्षा के लिए, कृपया एक योग्य स्वास्थ्य देखभाल पेशेवर से परामर्श लें।",
-    # Add other languages as needed
-}
 
 # --- FastAPI App Initialization ---
 app = FastAPI(title="Dhanvantari API - Hugging Face Edition", description="AI-Driven Healthcare Backend with BioMistral", version="2.0.0")
@@ -113,32 +107,34 @@ Your Instructions:
         base_prompt += context_info
     return base_prompt
 
-def query_huggingface_api(prompt: str) -> Optional[str]:
-    """Calls the Hugging Face Inference API and returns the generated text."""
+def query_huggingface_api(messages: List[dict]) -> Optional[str]:
+    """Calls the Hugging Face OpenAI-compatible chat completions endpoint."""
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 250,
-            "return_full_text": False,
-        },
-        "options": {
-            "wait_for_model": True
-        }
+        "model": "BioMistral/BioMistral-7B-SLERP",
+        "messages": messages,
+        "max_tokens": 500,
     }
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
+        
         if response.status_code == 200:
             result = response.json()
-            if isinstance(result, list) and result and 'generated_text' in result[0]:
-                logger.info("Successfully received response from Hugging Face API.")
-                return result[0]['generated_text'].strip()
+            if result.get('choices') and len(result['choices']) > 0:
+                content = result['choices'][0].get('message', {}).get('content')
+                if content:
+                    logger.info("Successfully received response from Hugging Face API.")
+                    return content.strip()
+                else:
+                    logger.error(f"Hugging Face API returned no content in choice: {result}")
+                    return None
             else:
-                logger.error(f"Hugging Face API returned unexpected format: {result}")
+                logger.error(f"Hugging Face API returned unexpected format or empty choices: {result}")
                 return None
         else:
             logger.error(f"Hugging Face API request failed with status {response.status_code}: {response.text}")
             return None
+            
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Hugging Face API: {e}")
         return None
@@ -150,24 +146,28 @@ async def chat_endpoint(request: ChatRequest):
         if not request.messages:
             raise HTTPException(status_code=400, detail="No messages provided")
 
-        system_prompt = build_personalized_system_prompt(request.language, request.user_context)
-        conversation_history = "".join([f"{m.role}: {m.content}\n" for m in request.messages])
-        full_prompt = f"{system_prompt}\n\n{conversation_history}assistant:"
+        # Build the messages payload for the OpenAI-compatible endpoint
+        system_prompt_content = build_personalized_system_prompt(request.language, request.user_context)
+        
+        messages_payload = [
+            {"role": "system", "content": system_prompt_content}
+        ]
+        # Add user messages
+        for msg in request.messages:
+            messages_payload.append({"role": msg.role, "content": msg.content})
 
-        ai_response = query_huggingface_api(full_prompt)
+        ai_response = query_huggingface_api(messages_payload)
 
         if ai_response:
             logger.info(f"Generated response: {ai_response[:100]}...")
             return ChatResponse(response=ai_response)
         else:
-            logger.error("AI response is None, returning fallback.")
-            fallback_response = FALLBACK_RESPONSES.get(request.language, FALLBACK_RESPONSES["English"])
-            return ChatResponse(response=fallback_response)
+            logger.error("AI response is None, raising 500 error.")
+            raise HTTPException(status_code=500, detail="The AI model failed to generate a response. Please try again later.")
 
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
-        fallback_response = FALLBACK_RESPONSES.get(request.language, FALLBACK_RESPONSES["English"])
-        raise HTTPException(status_code=500, detail=fallback_response)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 if __name__ == "__main__":
     import uvicorn
