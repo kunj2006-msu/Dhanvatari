@@ -99,6 +99,7 @@ STRICT RULES:
 1. Always prioritize the User's specific health conditions over general advice.
 2. Use natural, spoken {language}.
 3. Safety: End by recommending a real doctor.
+4.Keep your response concise and limited to 5 main points so the user can follow easily.
 
 USER PROFILE:
 - Age: {user_context.age if user_context else 'N/A'}
@@ -112,7 +113,7 @@ def query_huggingface_api(messages: List[dict]) -> Optional[str]:
         # Llama 3.3 70B એ અત્યારે ફ્રીમાં ઉપલબ્ધ શ્રેષ્ઠ મોડેલ છે
         "model": "meta-llama/Llama-3.3-70B-Instruct", 
         "messages": messages,
-        "max_tokens": 800,
+        "max_tokens": 1200,
         "temperature": 0.3,       # ઓછું ટેમ્પરેચર એટલે વધુ સ્થિર ભાષા
         "frequency_penalty": 0.4,  # પુનરાવર્તન અટકાવવા માટે
         "top_p": 0.85,
