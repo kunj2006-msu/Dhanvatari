@@ -111,7 +111,7 @@ def query_huggingface_api(messages: List[dict]) -> Optional[str]:
     """Calls the Hugging Face OpenAI-compatible chat completions endpoint."""
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
-        "model": "BioMistral/BioMistral-7B-SLERP",
+        "model": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
         "messages": messages,
         "max_tokens": 500,
     }
