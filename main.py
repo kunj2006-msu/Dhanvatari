@@ -115,7 +115,7 @@ def query_huggingface_api(messages: List[dict]) -> Optional[str]:
         "max_tokens": 800,
         "temperature": 0.3,       # ઓછું ટેમ્પરેચર એટલે વધુ સ્થિર ભાષા
         "frequency_penalty": 0.4,  # પુનરાવર્તન અટકાવવા માટે
-        "top_p": 0.85
+        "top_p": 0.85,
         "presence_penalty": 0.3
     }
     # ... બાકીનું લોજિક ...
