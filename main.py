@@ -86,19 +86,21 @@ def build_personalized_system_prompt(language: str, user_context: Optional[UserC
 3. Process: Think about the medical advice in English first, but only write the final output in {language}.
 4. Style: Helpful, empathetic, and clear.
 5. Safety: Remind the user you are an AI and they must see a doctor.
+6. STRICT RULE: Do not use any special symbols like $ or LaTeX formatting. Use plain Unicode Gujarati script only. Write like a human doctor, not a machine.
 User context: {user_context}"""
 
 def query_huggingface_api(messages: List[dict]) -> Optional[str]:
-    """Calls the Hugging Face OpenAI-compatible chat completions endpoint."""
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
-    # Change from 7B to 72B-Instruct
-    "model": "Qwen/Qwen2.5-72B-Instruct", 
-    "messages": messages,
-    "max_tokens": 800, # 72B can handle longer, more detailed responses
-    "temperature": 0.4, # Keep it low for medical accuracy
-    "frequency_penalty": 0.5 
-}
+        # Llama 3.3 70B એ અત્યારે ફ્રીમાં ઉપલબ્ધ શ્રેષ્ઠ મોડેલ છે
+        "model": "meta-llama/Llama-3.3-70B-Instruct", 
+        "messages": messages,
+        "max_tokens": 800,
+        "temperature": 0.4,       # ઓછું ટેમ્પરેચર એટલે વધુ સ્થિર ભાષા
+        "frequency_penalty": 0.5,  # પુનરાવર્તન અટકાવવા માટે
+        "top_p": 0.9
+    }
+    # ... બાકીનું લોજિક ...
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
         
