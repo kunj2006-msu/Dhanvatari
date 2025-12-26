@@ -1,10 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 import logging
 import requests
+import pytesseract
+from PIL import Image
+import io
+import pdfplumber
+import random
 
 # --- Configuration ---
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -50,6 +55,20 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
 
+class Doctor(BaseModel):
+    name: str
+    specialty: str
+    city: str
+    state: str
+    contact: str
+
+class MentalHealthChatRequest(ChatRequest):
+    mood: str # e.g., '😡', '😔', '😐', '😊', '😰'
+
+class ReportAnalysisResponse(BaseModel):
+    original_text: str
+    summary: str
+
 # --- API Endpoints ---
 @app.get("/")
 async def root():
@@ -78,6 +97,45 @@ def get_language_instruction(language: str) -> str:
         "English": "You are an experienced doctor. Speak in clear, professional, and natural English."
     }
     return instructions.get(language, "Speak naturally and fluently in the requested language.")
+
+# --- Facility 4: Dynamic Doctor Directory ---
+def generate_doctors_db(num_doctors=500):
+    first_names = ["Aarav", "Vivaan", "Aditya", "Vihaan", "Arjun", "Sai", "Reyansh", "Ayaan", "Krishna", "Ishaan", "Ananya", "Diya", "Saanvi", "Aadhya", "Myra", "Aarohi", "Pari", "Riya", "Siya", "Navya"]
+    last_names = ["Sharma", "Verma", "Gupta", "Singh", "Patel", "Kumar", "Das", "Mehta", "Shah", "Joshi"]
+    specialties = ["Cardiologist", "Dermatologist", "Orthopedic Surgeon", "Pediatrician", "Neurologist", "Gynecologist", "Oncologist", "Psychiatrist", "Radiologist", "General Physician"]
+    locations = [
+        {"city": "Mumbai", "state": "Maharashtra"}, {"city": "Pune", "state": "Maharashtra"},
+        {"city": "Delhi", "state": "Delhi"},
+        {"city": "Bengaluru", "state": "Karnataka"}, {"city": "Mysuru", "state": "Karnataka"},
+        {"city": "Chennai", "state": "Tamil Nadu"},
+        {"city": "Ahmedabad", "state": "Gujarat"}, {"city": "Vadodara", "state": "Gujarat"}, {"city": "Surat", "state": "Gujarat"}, {"city": "Godhra", "state": "Gujarat"},
+        {"city": "Kolkata", "state": "West Bengal"},
+    ]
+    db = []
+    for _ in range(num_doctors):
+        location = random.choice(locations)
+        doctor = {
+            "name": f"Dr. {random.choice(first_names)} {random.choice(last_names)}",
+            "specialty": random.choice(specialties),
+            "city": location["city"],
+            "state": location["state"],
+            "contact": f"+91 {random.randint(90000, 99999)} {random.randint(10000, 99999)}"
+        }
+        db.append(doctor)
+    return db
+
+doctors_db = generate_doctors_db()
+
+@app.get("/doctors", response_model=List[Doctor])
+async def get_doctors(state: Optional[str] = None, city: Optional[str] = None, specialty: Optional[str] = None):
+    filtered_doctors = doctors_db
+    if state:
+        filtered_doctors = [d for d in filtered_doctors if d['state'] == state]
+    if city:
+        filtered_doctors = [d for d in filtered_doctors if d['city'] == city]
+    if specialty:
+        filtered_doctors = [d for d in filtered_doctors if d['specialty'] == specialty]
+    return filtered_doctors
 
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
     # Check for serious conditions
@@ -114,7 +172,7 @@ def query_huggingface_api(messages: List[dict]) -> Optional[str]:
         "model": "meta-llama/Llama-3.3-70B-Instruct", 
         "messages": messages,
         "max_tokens": 1200,
-        "temperature": 0.3,       # ઓછું ટેમ્પરેચર એટલે વધુ સ્થિર ભાષા
+        "temperature": 0.4,       # Adjusted for linguistic stability
         "frequency_penalty": 0.4,  # પુનરાવર્તન અટકાવવા માટે
         "top_p": 0.85,
         "presence_penalty": 0.3
@@ -173,6 +231,90 @@ async def chat_endpoint(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+
+# --- Facility 2: Mental Health --- 
+@app.post("/chat/mental-health", response_model=ChatResponse)
+async def mental_health_chat(request: MentalHealthChatRequest):
+    logger.info(f"Received mental health chat request with mood: {request.mood}")
+
+    mood_interpretation = {
+        '😡': 'feeling very angry or frustrated',
+        '😔': 'feeling sad or down',
+        '😐': 'feeling neutral or unsure',
+        '😊': 'feeling happy or positive',
+        '😰': 'feeling anxious or scared'
+    }
+
+    system_prompt = f"""You are a Compassionate Psychological Counselor. Your goal is to provide a safe, empathetic, and supportive space. The user is currently {mood_interpretation.get(request.mood, 'expressing a certain mood')}. 
+    {get_language_instruction(request.language)}
+
+    Your Instructions:
+    1. Acknowledge their stated mood gently.
+    2. NEVER diagnose. Offer general coping strategies or reflective questions.
+    3. Use a soft, reassuring, and non-judgmental tone.
+    4. Always encourage speaking to a licensed therapist for serious issues.
+    5. Keep the conversation focused on emotional well-being.
+    """
+    
+    messages_payload = [{"role": "system", "content": system_prompt}]
+    for msg in request.messages:
+        messages_payload.append({"role": msg.role, "content": msg.content})
+
+    ai_response = query_huggingface_api(messages_payload)
+
+    if ai_response:
+        return ChatResponse(response=ai_response)
+    else:
+        raise HTTPException(status_code=500, detail="AI model failed to generate a response.")
+
+# --- Facility 3: Report Analysis --- 
+async def extract_text_from_file(file: UploadFile):
+    content = await file.read()
+    if file.content_type == "application/pdf":
+        text = ""
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() + "\n"
+        return text
+    elif file.content_type in ["image/jpeg", "image/png"]:
+        image = Image.open(io.BytesIO(content))
+        text = pytesseract.image_to_string(image)
+        return text
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a PDF, JPEG, or PNG.")
+
+@app.post("/analyze-report", response_model=ReportAnalysisResponse)
+async def analyze_report(language: str, file: UploadFile = File(...)):
+    logger.info(f"Received report analysis request for file: {file.filename}")
+    
+    original_text = await extract_text_from_file(file)
+    if not original_text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract any text from the uploaded file.")
+
+    system_prompt = f"""You are a medical lab expert. Your task is to translate these report findings into very simple, non-medical {language} so the user understands their health. 
+    STRICT INSTRUCTIONS:
+    1. Analyze the provided medical report text.
+    2. Identify key findings, values, and measurements.
+    3. For each finding, explicitly state if the value is 'High', 'Low', or 'Normal'. 
+    4. Explain what each measurement means in simple terms.
+    5. Do not provide a diagnosis. Only explain the results.
+    6. Format the output clearly for easy reading.
+    
+    Report Text to Analyze:
+    --- BEGIN REPORT ---
+    {original_text}
+    --- END REPORT ---
+    
+    Begin the summary now in {language}."
+    """
+
+    messages_payload = [{"role": "system", "content": system_prompt}]
+    summary = query_huggingface_api(messages_payload)
+
+    if summary:
+        return ReportAnalysisResponse(original_text=original_text, summary=summary)
+    else:
+        raise HTTPException(status_code=500, detail="AI model failed to generate a summary.")
 
 if __name__ == "__main__":
     import uvicorn
