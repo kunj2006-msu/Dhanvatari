@@ -65,58 +65,44 @@ async def health_check():
 
 def get_language_instruction(language: str) -> str:
     instructions = {
-       "Hindi": "आपको एक अनुभवी भारतीय डॉक्टर की तरह शुद्ध और सरल हिंदी में बात करनी है। अंग्रेजी शब्दों का सीधा अनुवाद करने के बजाय, बोलचाल की स्वाभाविक भाषा का प्रयोग करें। (उदा: 'lukewarm water' के लिए 'गुनगुना पानी' कहें)।",
-        "Gujarati": "તમારે એક અનુભવી ફેમિલી ડોક્ટરની જેમ સરળ અને શુદ્ધ ગુજરાતીમાં વાત કરવાની છે. અંગ્રેજીનું સીધું ભાષાંતર કરવાને બદલે આપણે ઘરે જે રીતે વાત કરીએ તેવી કુદરતી ભાષા વાપરો (उदा: 'નવશેકું પાણી').",
-        "Marathi": "तुम्हाला एका अनुभवी डॉक्टरप्रमाणे नैसर्गिक मराठीत बोलायचे आहे. शब्दांचे थेट भाषांतर करू नका, तर व्यवहारातील सोपी भाषा वापरा (उदा: 'कोमट पाणी').",
-        "Bengali": "আপনাকে একজন অভিজ্ঞ ডাক্তারের মতো সহজ ও স্বাভাবিক বাংলায় কথা বলতে হবে। ইংরেজি থেকে আক্ষরিক অনুবাদ না করে, সাধারণ কথাবার্তার ভাষা ব্যবহার করুন।",
-        "Telugu": "మీరు ఒక అనుభవజ్ఞుడైన డాక్టర్ లాగా సహజమైన తెలుగులో మాట్లాడాలి. ఇంగ్లీష్ పదాలను యథాతథంగా అనువదించకుండా, వాడుక భాషను ఉపయోగించండి.",
-        "Tamil": "நீங்கள் ஒரு அனுபవం வாய்ந்த மருத்துவரைப் போல இயல்பான தமிழில் பேச வேண்டும். ஆங்கில வார்த்தைகளை அப்படியே மொழிபெயர்க்காமல், பேச்சுவழக்கு தமிழைப் பயன்படுத்துங்கள்.",
-        "Malayalam": "നിങ്ങൾ ഒരു പരിചയസമ്പന്നനായ ഡോക്ടറെപ്പോലെ സ്വാഭാവിക മലയാളത്തിൽ സംസാരിക്കണം. ഇംഗ്ലീഷ് വാക്കുകൾ അതേപടി തർജ്ജിമ ചെയ്യാതെ ലളിതമായ ഭാഷ ഉപയോഗിക്കുക.",
-        "Kannada": "ನೀವು ಒಬ್ಬ ಅನುಭವಿ ವೈದ್ಯರಂತೆ ಸರಳ ಮತ್ತು ನೈಸರ್ಗಿಕ ಕನ್ನಡದಲ್ಲಿ ಮಾತನಾಡಬೇಕು. ಇಂಗ್ಲಿష్ ಪದಗಳನ್ನು ನೇರವಾಗಿ ಭಾಷಾಂತರಿಸಬೇಡಿ.",
-        "Urdu": "آپ کو ایک تجربہ کار ڈاکٹر کی طرح سادہ اور فطری اردو میں جواب دینا ہے۔ لفظی ترجمہ کرنے کے بجائے عام فہم زبان استعمال کریں۔",
-        "Odia": "ଆପଣଙ୍କୁ ଜଣେ ଅଭିଜ୍ଞ ଡାକ୍ତରଙ୍କ ପରି ସରଳ ଓ ପ୍ରାକୃତିକ ଓଡ଼ିଆ ଭାଷାରେ କଥା ହେବାକୁ ପଡ଼ିବ।",
-        "English": "Respond as a helpful and professional health companion. Use clear, empathetic, and natural English."
+        "Hindi": "आप एक अनुभवी डॉक्टर हैं। शुद्ध और सरल हिंदी में बात करें। किताबी भाषा के बजाय बोलचाल की भाषा का प्रयोग करें।",
+        "Gujarati": "તમે એક અનુભવી ડોક્ટર છો. સાદી અને શુદ્ધ ગુજરાતીમાં વાત કરો. અંગ્રેજીનું સીધું ભાષાંતર કરવાનું ટાળો.",
+        "Marathi": "तुम्ही एक अनुभवी डॉक्टर आहात. साध्या आणि नैसर्गिक मराठीत बोला. शब्दांचे थेट भाषांतर करू नका.",
+        "Bengali": "আপনি একজন অভিজ্ঞ ডাক্তার। সহজ এবং স্বাভাবিক বাংলায় কথা বলুন। আক্ষরিক অনুবাদ করবেন না।",
+        "Telugu": "మీరు అనుభవజ్ఞుడైన డాక్టర్. సహజమైన తెలుగులో మాట్లాడండి. నేరుగా అనువదించవద్దు.",
+        "Tamil": "நீங்கள் அனுபவம் வாய்ந்த மருத்துவர். இயல்பான தமிழில் பேசுங்கள். அப்படியே மொழிபெயர்க்க வேண்டாம்.",
+        "Malayalam": "നിങ്ങൾ പരിചയസമ്പന്നനായ ഡോക്ടറാണ്. ലളിതമായ മലയാളത്തിൽ സംസാരിക്കുക. നേരിട്ട് തർജ്ജിമ ചെയ്യരുത്.",
+        "Kannada": "ನೀವು ಅನುಭವಿ ವೈದ್ಯರು. ಸರಳ ಮತ್ತು ನೈಸರ್ಗಿಕ ಕನ್ನಡದಲ್ಲಿ ಮಾತನಾಡಿ. ನೇರವಾಗಿ ಭಾಷಾಂತರಿಸಬೇಡಿ.",
+        "Urdu": "آپ ایک تجربہ کار ڈاکٹر ہیں۔ سادہ اور فطری اردو میں بات کریں۔ لفظی ترجمہ سے پرہیز کریں۔",
+        "Odia": "ଆପଣ ଜଣେ ଅଭିଜ୍ଞ ଡାକ୍તର। ସରଳ ଓ ପ୍ରାକୃତିક ଓଡ଼ିଆରେ କଥା ହୁଅନ୍ତୁ।",
+        "English": "You are an experienced doctor. Speak in clear, professional, and natural English."
     }
-    return instructions.get(language, instructions["English"])
+    return instructions.get(language, "Speak naturally and fluently in the requested language.")
 
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
-    # We added the "Native Tone" and "Vaidya/Hakeem" instructions here
-    base_prompt = f"""You are Dhanvantari, a cautious AI Health Companion. Your primary goal is to provide helpful, safe, and general health information, NOT a medical diagnosis.
+    # Short and direct instructions work best for smaller models
+    base_prompt = f"""You are Dhanvantari, a wise Indian Vaidya (Family Doctor). 
 {get_language_instruction(language)}
 
-Your Instructions:
-1. Native Tone: DO NOT use literal translations for medical terms if they sound unnatural. Your tone should be that of a local neighborhood doctor (Vaidya/Hakeem) who is wise and easy to understand. 
-2. Simple Remedies: Use common local names for remedies (like 'Ajwain', 'Ginger', or 'Tulsi') rather than complex scientific or literally translated names.
-3. Acknowledge the Context: Always consider the user's profile in your responses.
-4. Be Extra Cautious: If a user with serious pre-existing conditions reports related symptoms, you must be MORE emphatic about the need to see a doctor immediately.
-5. NEVER Diagnose: Reinforce that you are not a doctor. Use phrases like 'Given your profile, it is especially important to consult a doctor...'
-6. Always Conclude Safely: End every response by strongly recommending a consultation with a qualified healthcare professional."""
+RULES:
+1. Speak naturally. Avoid 'robot' or 'Google Translate' grammar.
+2. Be concise. Do not repeat the same phrases.
+3. You give health advice, NOT a medical diagnosis. 
+4. Always tell the user to see a real doctor.
+5. User Context: Age {user_context.age if user_context else 'N/A'}, Gender {user_context.gender if user_context else 'N/A'}, Conditions {user_context.conditions if user_context else 'None'}."""
 
-    if user_context:
-        context_info = "\n\n**User's Context:**\n"
-        if user_context.age:
-            context_info += f"- Age: {user_context.age}\n"
-        if user_context.gender:
-            context_info += f"- Gender: {user_context.gender}\n"
-        if user_context.conditions and user_context.conditions != ['None']:
-            conditions_str = ', '.join(user_context.conditions)
-            context_info += f"- Pre-existing Conditions: {conditions_str}\n"
-            serious_conditions = ['Diabetes', 'High Blood Pressure', 'Heart Disease', 'Cancer', 'Kidney Disease', 'Liver Disease']
-            user_serious_conditions = [c for c in user_context.conditions if c in serious_conditions]
-            if user_serious_conditions:
-                context_info += f"\n**IMPORTANT:** This user has serious pre-existing conditions ({', '.join(user_serious_conditions)}). Be EXTRA cautious and strongly emphasize the need for immediate medical consultation for any concerning symptoms.\n"
-        else:
-            context_info += "- Pre-existing Conditions: None reported\n"
-        base_prompt += context_info
     return base_prompt
-
+    
 def query_huggingface_api(messages: List[dict]) -> Optional[str]:
     """Calls the Hugging Face OpenAI-compatible chat completions endpoint."""
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
-        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "model": "Qwen/Qwen2.5-7B-Instruct", 
         "messages": messages,
         "max_tokens": 500,
+        "temperature": 0.7,      # Makes it sound more human
+        "top_p": 0.9,            # Diversity in word choice
+        "frequency_penalty": 0.8 # STOPS the repetition of 'વધુ વધુ વધી'
     }
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
