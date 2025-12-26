@@ -80,30 +80,25 @@ def get_language_instruction(language: str) -> str:
     return instructions.get(language, "Speak naturally and fluently in the requested language.")
 
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
-    # Short and direct instructions work best for smaller models
-    base_prompt = f"""You are Dhanvantari, a wise Indian Vaidya (Family Doctor). 
-{get_language_instruction(language)}
+    return f"""You are a professional medical assistant. 
+1. Target Language: {language}
+2. Rule: You MUST respond ONLY in {language}. Use natural, local phrasing.
+3. Process: Think about the medical advice in English first, but only write the final output in {language}.
+4. Style: Helpful, empathetic, and clear.
+5. Safety: Remind the user you are an AI and they must see a doctor.
+User context: {user_context}"""
 
-RULES:
-1. Speak naturally. Avoid 'robot' or 'Google Translate' grammar.
-2. Be concise. Do not repeat the same phrases.
-3. You give health advice, NOT a medical diagnosis. 
-4. Always tell the user to see a real doctor.
-5. User Context: Age {user_context.age if user_context else 'N/A'}, Gender {user_context.gender if user_context else 'N/A'}, Conditions {user_context.conditions if user_context else 'None'}."""
-
-    return base_prompt
-    
 def query_huggingface_api(messages: List[dict]) -> Optional[str]:
     """Calls the Hugging Face OpenAI-compatible chat completions endpoint."""
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
-        "model": "Qwen/Qwen2.5-7B-Instruct", 
-        "messages": messages,
-        "max_tokens": 500,
-        "temperature": 0.7,      # Makes it sound more human
-        "top_p": 0.9,            # Diversity in word choice
-        "frequency_penalty": 0.8 # STOPS the repetition of 'વધુ વધુ વધી'
-    }
+    # Change from 7B to 72B-Instruct
+    "model": "Qwen/Qwen2.5-72B-Instruct", 
+    "messages": messages,
+    "max_tokens": 800, # 72B can handle longer, more detailed responses
+    "temperature": 0.4, # Keep it low for medical accuracy
+    "frequency_penalty": 0.5 
+}
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
         
