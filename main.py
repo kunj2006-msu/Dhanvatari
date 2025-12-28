@@ -7,6 +7,8 @@ import logging
 import requests
 import random
 import json
+import uuid
+from datetime import datetime
 
 # --- Configuration ---
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -49,9 +51,16 @@ class ChatRequest(BaseModel):
     messages: List[Message]
     language: str = "English"
     user_context: Optional[UserContext] = None
+    session_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
+    session_id: str
+
+class ChatSession(BaseModel):
+    session_id: str
+    title: str
+    created_at: str
 
 class Doctor(BaseModel):
     name: str
@@ -149,20 +158,51 @@ async def get_doctor_options():
 CHAT_HISTORY_FILE = "chat_history.json"
 
 def load_chat_history() -> dict:
-    if os.path.exists(CHAT_HISTORY_FILE):
-        with open(CHAT_HISTORY_FILE, 'r', encoding='utf-8') as f:
+    if not os.path.exists(CHAT_HISTORY_FILE):
+        return {}
+    with open(CHAT_HISTORY_FILE, 'r', encoding='utf-8') as f:
+        try:
             return json.load(f)
-    return {}
+        except json.JSONDecodeError:
+            return {}
 
 def save_chat_history(history: dict):
     with open(CHAT_HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(history, f, ensure_ascii=False, indent=4)
 
-@app.get("/chat/history/{user_id}", response_model=List[Message])
-async def get_history(user_id: str):
-    logger.info(f"Fetching chat history for user_id: {user_id}")
+@app.get("/chats/{user_id}", response_model=List[ChatSession])
+async def get_chat_sessions(user_id: str):
     history = load_chat_history()
-    return history.get(user_id, [])
+    user_chats = history.get(user_id, {})
+    sessions = [
+        ChatSession(session_id=sid, title=sdata.get('title', 'Untitled'), created_at=sdata.get('created_at'))
+        for sid, sdata in user_chats.items()
+    ]
+    # Sort sessions by creation date, newest first
+    sessions.sort(key=lambda x: x.created_at, reverse=True)
+    return sessions
+
+@app.get("/chat/{session_id}", response_model=List[Message])
+async def get_session_messages(session_id: str):
+    history = load_chat_history()
+    for user_id in history:
+        if session_id in history[user_id]:
+            return history[user_id][session_id].get('messages', [])
+    raise HTTPException(status_code=404, detail="Session not found")
+
+@app.delete("/chat/{session_id}")
+async def delete_chat_session(session_id: str):
+    history = load_chat_history()
+    session_found = False
+    for user_id in history:
+        if session_id in history[user_id]:
+            del history[user_id][session_id]
+            session_found = True
+            break
+    if not session_found:
+        raise HTTPException(status_code=404, detail="Session not found")
+    save_chat_history(history)
+    return {"status": "success", "message": "Session deleted"}
 
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
     # Check for serious conditions
@@ -250,18 +290,27 @@ async def chat_endpoint(request: ChatRequest):
 
         if ai_response:
             logger.info(f"Generated response: {ai_response[:100]}...")
-            
-            # Save the conversation to history
             history = load_chat_history()
-            if request.user_id not in history:
-                history[request.user_id] = []
+            user_chats = history.get(request.user_id, {})
+
+            session_id = request.session_id
+            if not session_id:
+                session_id = str(uuid.uuid4())
+                title = request.messages[-1].content[:50]  # First 50 chars as title
+                user_chats[session_id] = {
+                    "title": title,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "messages": []
+                }
+
+            # Append messages to the session
+            user_chats[session_id]['messages'].append(request.messages[-1].dict())
+            user_chats[session_id]['messages'].append({"role": "assistant", "content": ai_response})
             
-            # Add the user's last message and the AI's response
-            history[request.user_id].append(request.messages[-1].dict())
-            history[request.user_id].append({"role": "assistant", "content": ai_response})
+            history[request.user_id] = user_chats
             save_chat_history(history)
 
-            return ChatResponse(response=ai_response)
+            return ChatResponse(response=ai_response, session_id=session_id)
         else:
             logger.error("AI response is None, raising 500 error.")
             raise HTTPException(status_code=500, detail="The AI model failed to generate a response. Please try again later.")
