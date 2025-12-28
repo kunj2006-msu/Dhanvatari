@@ -1,14 +1,10 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import os
 import logging
 import requests
-import pytesseract
-from PIL import Image
-import io
-import pdfplumber
 import random
 
 # --- Configuration ---
@@ -65,9 +61,6 @@ class Doctor(BaseModel):
 class MentalHealthChatRequest(ChatRequest):
     mood: str # e.g., '😡', '😔', '😐', '😊', '😰'
 
-class ReportAnalysisResponse(BaseModel):
-    original_text: str
-    summary: str
 
 class DoctorFilterOptions(BaseModel):
     states: List[str]
@@ -280,54 +273,6 @@ async def mental_health_chat(request: MentalHealthChatRequest):
     else:
         raise HTTPException(status_code=500, detail="AI model failed to generate a response.")
 
-# --- Facility 3: Report Analysis --- 
-async def extract_text_from_file(file: UploadFile):
-    content = await file.read()
-    if file.content_type == "application/pdf":
-        text = ""
-        with pdfplumber.open(io.BytesIO(content)) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() + "\n"
-        return text
-    elif file.content_type in ["image/jpeg", "image/png"]:
-        image = Image.open(io.BytesIO(content))
-        text = pytesseract.image_to_string(image)
-        return text
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a PDF, JPEG, or PNG.")
-
-@app.post("/analyze-report", response_model=ReportAnalysisResponse)
-async def analyze_report(language: str, file: UploadFile = File(...)):
-    logger.info(f"Received report analysis request for file: {file.filename}")
-    
-    original_text = await extract_text_from_file(file)
-    if not original_text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract any text from the uploaded file.")
-
-    system_prompt = f"""You are a medical lab expert. Your task is to translate these report findings into very simple, non-medical {language} so the user understands their health. 
-    STRICT INSTRUCTIONS:
-    1. Analyze the provided medical report text.
-    2. Identify key findings, values, and measurements.
-    3. For each finding, explicitly state if the value is 'High', 'Low', or 'Normal'. 
-    4. Explain what each measurement means in simple terms.
-    5. Do not provide a diagnosis. Only explain the results.
-    6. Format the output clearly for easy reading.
-    
-    Report Text to Analyze:
-    --- BEGIN REPORT ---
-    {original_text}
-    --- END REPORT ---
-    
-    Begin the summary now in {language}."
-    """
-
-    messages_payload = [{"role": "system", "content": system_prompt}]
-    summary = query_huggingface_api(messages_payload)
-
-    if summary:
-        return ReportAnalysisResponse(original_text=original_text, summary=summary)
-    else:
-        raise HTTPException(status_code=500, detail="AI model failed to generate a summary.")
 
 if __name__ == "__main__":
     import uvicorn
