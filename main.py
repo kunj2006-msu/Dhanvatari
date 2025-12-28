@@ -72,6 +72,13 @@ class Doctor(BaseModel):
 class MentalHealthChatRequest(ChatRequest):
     mood: str # e.g., '😡', '😔', '😐', '😊', '😰'
 
+class MentalHealthGreetingRequest(BaseModel):
+    mood: str
+    language: str = "English"
+
+class MentalHealthGreetingResponse(BaseModel):
+    greeting: str
+
 
 class DoctorFilterOptions(BaseModel):
     specialties: List[str]
@@ -327,7 +334,37 @@ async def chat_endpoint(request: ChatRequest):
         logger.error(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
-# --- Facility 2: Mental Health --- 
+# --- Facility 2: Mental Health ---
+@app.post("/chat/mental-health/greeting", response_model=MentalHealthGreetingResponse)
+async def mental_health_greeting(request: MentalHealthGreetingRequest):
+    logger.info(f"Generating mental health greeting for mood: {request.mood} in {request.language}")
+
+    mood_interpretation = {
+        '😡': 'angry or frustrated',
+        '😔': 'sad or down',
+        '😐': 'neutral or unsure',
+        '😊': 'happy or positive',
+        '😰': 'anxious or scared'
+    }
+
+    prompt = f"""You are a compassionate psychological counselor. A user is starting a conversation and they are feeling {mood_interpretation.get(request.mood, 'a certain way')}. 
+Generate a single, short, empathetic opening sentence in {request.language} to welcome them. 
+
+Examples:
+- If sad: 'I can feel you are going through a tough time. I am here to listen...'
+- If angry: 'It's okay to feel frustrated. Let's talk about what's bothering you...'
+
+IMPORTANT: Only return the single greeting sentence. Do not add any other text or questions."""
+
+    messages_payload = [{"role": "system", "content": prompt}]
+    greeting = query_huggingface_api(messages_payload)
+
+    if greeting:
+        return MentalHealthGreetingResponse(greeting=greeting)
+    else:
+        # Fallback greeting
+        fallback_greeting = "Hello, I'm here to listen. How are you feeling today?"
+        return MentalHealthGreetingResponse(greeting=fallback_greeting) 
 @app.post("/chat/mental-health", response_model=ChatResponse)
 async def mental_health_chat(request: MentalHealthChatRequest):
     logger.info(f"Received mental health chat request with mood: {request.mood}")
