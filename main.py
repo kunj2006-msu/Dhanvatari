@@ -395,7 +395,27 @@ async def mental_health_chat(request: MentalHealthChatRequest):
     ai_response = query_huggingface_api(messages_payload)
 
     if ai_response:
-        return ChatResponse(response=ai_response)
+        history = load_chat_history()
+        user_chats = history.get(request.user_id, {})
+
+        session_id = request.session_id
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            title = f"Chat on {datetime.utcnow().strftime('%Y-%m-%d')}"
+            user_chats[session_id] = {
+                "title": title,
+                "created_at": datetime.utcnow().isoformat(),
+                "messages": []
+            }
+
+        # Append messages
+        user_chats[session_id]['messages'].append(request.messages[-1].dict())
+        user_chats[session_id]['messages'].append({"role": "assistant", "content": ai_response})
+        
+        history[request.user_id] = user_chats
+        save_chat_history(history)
+
+        return ChatResponse(response=ai_response, session_id=session_id)
     else:
         raise HTTPException(status_code=500, detail="AI model failed to generate a response.")
 
