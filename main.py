@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 import os
 import logging
 import requests
@@ -74,9 +74,8 @@ class MentalHealthChatRequest(ChatRequest):
 
 
 class DoctorFilterOptions(BaseModel):
-    states: List[str]
-    cities: List[str]
     specialties: List[str]
+    locations: Dict[str, List[str]]
 
 # --- API Endpoints ---
 @app.get("/")
@@ -148,11 +147,20 @@ async def get_doctors(state: Optional[str] = None, city: Optional[str] = None, s
 
 @app.get("/doctors/options", response_model=DoctorFilterOptions)
 async def get_doctor_options():
-    """Provides a list of unique states, cities, and specialties for dropdown filters."""
-    states = sorted(list(set(d['state'] for d in doctors_db)))
-    cities = sorted(list(set(d['city'] for d in doctors_db)))
+    """Provides specialties and a state-to-city mapping for dropdown filters."""
     specialties = sorted(list(set(d['specialty'] for d in doctors_db)))
-    return {"states": states, "cities": cities, "specialties": specialties}
+    locations = {}
+    for doc in doctors_db:
+        state = doc['state']
+        city = doc['city']
+        if state not in locations:
+            locations[state] = set()
+        locations[state].add(city)
+    
+    # Convert sets to sorted lists and sort states
+    sorted_locations = {state: sorted(list(cities)) for state, cities in sorted(locations.items())}
+    
+    return {"specialties": specialties, "locations": sorted_locations}
 
 # --- Chat History Management ---
 CHAT_HISTORY_FILE = "chat_history.json"
