@@ -6,6 +6,7 @@ import os
 import logging
 import requests
 import random
+import json
 
 # --- Configuration ---
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -44,6 +45,7 @@ class UserContext(BaseModel):
     conditions: List[str] = []
 
 class ChatRequest(BaseModel):
+    user_id: str
     messages: List[Message]
     language: str = "English"
     user_context: Optional[UserContext] = None
@@ -143,6 +145,25 @@ async def get_doctor_options():
     specialties = sorted(list(set(d['specialty'] for d in doctors_db)))
     return {"states": states, "cities": cities, "specialties": specialties}
 
+# --- Chat History Management ---
+CHAT_HISTORY_FILE = "chat_history.json"
+
+def load_chat_history() -> dict:
+    if os.path.exists(CHAT_HISTORY_FILE):
+        with open(CHAT_HISTORY_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+def save_chat_history(history: dict):
+    with open(CHAT_HISTORY_FILE, 'w', encoding='utf-8') as f:
+        json.dump(history, f, ensure_ascii=False, indent=4)
+
+@app.get("/chat/history/{user_id}", response_model=List[Message])
+async def get_history(user_id: str):
+    logger.info(f"Fetching chat history for user_id: {user_id}")
+    history = load_chat_history()
+    return history.get(user_id, [])
+
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
     # Check for serious conditions
     has_serious_condition = user_context and user_context.conditions and any(c in ['Diabetes', 'Heart Disease', 'High Blood Pressure'] for c in user_context.conditions)
@@ -229,6 +250,17 @@ async def chat_endpoint(request: ChatRequest):
 
         if ai_response:
             logger.info(f"Generated response: {ai_response[:100]}...")
+            
+            # Save the conversation to history
+            history = load_chat_history()
+            if request.user_id not in history:
+                history[request.user_id] = []
+            
+            # Add the user's last message and the AI's response
+            history[request.user_id].append(request.messages[-1].dict())
+            history[request.user_id].append({"role": "assistant", "content": ai_response})
+            save_chat_history(history)
+
             return ChatResponse(response=ai_response)
         else:
             logger.error("AI response is None, raising 500 error.")
