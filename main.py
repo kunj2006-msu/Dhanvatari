@@ -69,6 +69,11 @@ class ReportAnalysisResponse(BaseModel):
     original_text: str
     summary: str
 
+class DoctorFilterOptions(BaseModel):
+    states: List[str]
+    cities: List[str]
+    specialties: List[str]
+
 # --- API Endpoints ---
 @app.get("/")
 async def root():
@@ -136,6 +141,14 @@ async def get_doctors(state: Optional[str] = None, city: Optional[str] = None, s
     if specialty:
         filtered_doctors = [d for d in filtered_doctors if d['specialty'] == specialty]
     return filtered_doctors
+
+@app.get("/doctors/options", response_model=DoctorFilterOptions)
+async def get_doctor_options():
+    """Provides a list of unique states, cities, and specialties for dropdown filters."""
+    states = sorted(list(set(d['state'] for d in doctors_db)))
+    cities = sorted(list(set(d['city'] for d in doctors_db)))
+    specialties = sorted(list(set(d['specialty'] for d in doctors_db)))
+    return {"states": states, "cities": cities, "specialties": specialties}
 
 def build_personalized_system_prompt(language: str, user_context: Optional[UserContext] = None) -> str:
     # Check for serious conditions
